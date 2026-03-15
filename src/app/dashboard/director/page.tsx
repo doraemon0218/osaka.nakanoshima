@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ClinicalTooltip } from "@/components/ui/clinical-tooltip";
 import {
@@ -9,28 +9,45 @@ import {
   Grid3X3,
   MessageSquare,
   ThumbsUp,
-  ChevronDown,
+  ThumbsDown,
+  Minus,
   ChevronUp,
+  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useDirectorLiked } from "@/contexts/director-liked";
+import { useDirectorLiked, type DirectorReaction } from "@/contexts/director-liked";
+import { usePendingProposals } from "@/contexts/pending-proposals";
 import {
   getChatById,
   getChatMessages,
   getSentProposal,
 } from "@/lib/chat-logs-data";
 
-/** 院長に挙がってきた提案（チャットID・提案主。内容は getSentProposal で取得） */
-const PROPOSALS_TO_DIRECTOR = [
+/** 院長に挙がってきた提案（静的：チャットID・提案主。内容は getSentProposal で取得） */
+const STATIC_PROPOSALS_TO_DIRECTOR = [
   { chatId: "4", from: "田中（企画管理室）", date: "2025/3/14" },
   { chatId: "5", from: "田中（企画管理室）", date: "2025/3/13" },
   { chatId: "6", from: "佐藤（企画管理室）", date: "2025/3/12" },
 ];
 
-const cards = [
-  { title: "本日の提案件数", value: "3", desc: "院長確認分" },
-  { title: "対応中", value: "2", desc: "検討・了承待ち" },
-  { title: "アラート", value: "1", desc: "要確認" },
+/** 院長一覧で表示する1件（静的 or 全員承認済みコンテキスト） */
+type DirectorProposalItem = {
+  key: string;
+  chatId: string;
+  from: string;
+  date: string;
+  title: string;
+  body: string;
+  improvements: { title: string; roi: string; risk: string }[];
+};
+
+/** サマリーの絞り込み種別（押したカードに応じて一覧をフィルタ） */
+type SummaryFilter = null | "unreviewed" | "in_progress" | "alert";
+
+const SUMMARY_CARDS: { key: SummaryFilter; title: string; desc: string }[] = [
+  { key: "unreviewed", title: "本日の提案件数", desc: "院長確認分" },
+  { key: "in_progress", title: "対応中", desc: "検討・了承待ち" },
+  { key: "alert", title: "アラート", desc: "要確認" },
 ];
 
 function formatSentAt(iso: string): string {
@@ -43,9 +60,76 @@ function formatSentAt(iso: string): string {
   });
 }
 
+const REACTION_FILTER_OPTIONS: { value: DirectorReaction | ""; label: string }[] = [
+  { value: "", label: "すべて" },
+  { value: "liked", label: "いいね！" },
+  { value: "not_bad", label: "悪くない" },
+  { value: "hmm", label: "う〜ん" },
+];
+
 export default function DirectorPage() {
-  const { isLiked, toggleLiked } = useDirectorLiked();
+  const { isLiked, getReaction, setReaction } = useDirectorLiked();
+  const { proposals: pendingProposals, getSentProposalFromContext } = usePendingProposals();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>(null);
+  const [reactionFilter, setReactionFilter] = useState<DirectorReaction | "">("");
+
+  // 静的リスト ＋ 未承認の提案で全員承認されたもの（院長に挙がったもの）
+  const proposalsToDirector = useMemo((): DirectorProposalItem[] => {
+    const staticItems: DirectorProposalItem[] = STATIC_PROPOSALS_TO_DIRECTOR.map((p) => {
+      const sp = getSentProposal(p.chatId);
+      return {
+        key: `static-${p.chatId}`,
+        chatId: p.chatId,
+        from: p.from,
+        date: p.date,
+        title: sp?.title ?? "（提案）",
+        body: sp?.body ?? "",
+        improvements: sp?.improvements ?? [],
+      };
+    });
+    const approvedFromContext = pendingProposals
+      .filter((p) => p.allApproved)
+      .map((p) => {
+        const sent = getSentProposalFromContext(p.fromChatId);
+        const dateStr = sent?.sentAt ? formatSentAt(sent.sentAt) : "—";
+        return {
+          key: p.id,
+          chatId: p.fromChatId,
+          from: p.sentBy,
+          date: dateStr,
+          title: p.title,
+          body: p.body,
+          improvements: [] as { title: string; roi: string; risk: string }[],
+        };
+      });
+    return [...approvedFromContext, ...staticItems];
+  }, [pendingProposals, getSentProposalFromContext]);
+
+  // サマリー用：院長がまだ反応していない件数（未判定）
+  const unreviewedCount = useMemo(
+    () => proposalsToDirector.filter((p) => getReaction(p.chatId) === null).length,
+    [proposalsToDirector, getReaction]
+  );
+  const alertCount = unreviewedCount > 0 ? 1 : 0;
+
+  // サマリー or 検証用反応で絞り込み
+  const displayedProposals = useMemo(() => {
+    let list = proposalsToDirector;
+    if (summaryFilter) {
+      list = list.filter((p) => getReaction(p.chatId) === null);
+    }
+    if (reactionFilter) {
+      list = list.filter((p) => getReaction(p.chatId) === reactionFilter);
+    }
+    return list;
+  }, [proposalsToDirector, summaryFilter, reactionFilter, getReaction]);
+
+  const getSummaryValue = (key: SummaryFilter): string => {
+    if (key === "alert") return String(alertCount);
+    if (key === "unreviewed" || key === "in_progress") return String(unreviewedCount);
+    return "0";
+  };
 
   return (
     <div className="space-y-8">
@@ -64,17 +148,30 @@ export default function DirectorPage() {
       {/* サマリー・ヒートマップリンク */}
       <section>
         <h3 className="mb-4 text-lg font-medium text-foreground">サマリー</h3>
+        <p className="mb-4 text-sm text-muted-foreground">
+          件数をタップすると、該当するチャットログ（提案）一覧が下に表示されます。
+        </p>
         <div className="grid gap-4 md:grid-cols-3">
-          {cards.map((card) => (
-            <div
-              key={card.title}
-              className="rounded-lg border border-border bg-card p-6 shadow-sm"
-            >
-              <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">{card.value}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{card.desc}</p>
-            </div>
-          ))}
+          {SUMMARY_CARDS.map((card) => {
+            const value = getSummaryValue(card.key);
+            const isActive = summaryFilter === card.key;
+            return (
+              <button
+                key={card.key ?? "all"}
+                type="button"
+                onClick={() => setSummaryFilter(isActive ? null : card.key)}
+                className={`rounded-lg border p-6 text-left shadow-sm transition-colors hover:border-primary/50 hover:bg-primary/5 ${
+                  isActive
+                    ? "border-primary bg-primary/10"
+                    : "border-border bg-card"
+                }`}
+              >
+                <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{card.desc}</p>
+              </button>
+            );
+          })}
         </div>
         <div className="mt-4">
           <Link
@@ -92,44 +189,81 @@ export default function DirectorPage() {
         </div>
       </section>
 
-      {/* 挙がってきた提案一覧：閲覧・いいね */}
-      <section>
-        <div className="mb-4 flex items-center gap-2">
+      {/* 挙がってきた提案一覧：閲覧・いいね（サマリーでフィルタ時は該当のみ表示） */}
+      <section id="proposal-list">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           <FileText className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-medium text-foreground">挙がってきた提案一覧</h3>
+          <h3 className="text-lg font-medium text-foreground">
+            {reactionFilter
+              ? REACTION_FILTER_OPTIONS.find((o) => o.value === reactionFilter)?.label + "の提案一覧"
+              : summaryFilter
+                ? SUMMARY_CARDS.find((c) => c.key === summaryFilter)?.desc + "の提案一覧"
+                : "挙がってきた提案一覧"}
+          </h3>
+          {(summaryFilter || reactionFilter) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSummaryFilter(null);
+                setReactionFilter("");
+              }}
+              className="text-muted-foreground"
+            >
+              すべての提案を表示
+            </Button>
+          )}
           <ClinicalTooltip content="従業員から院長に報告された提案です。閲覧でチャットログ・提案内容を確認し、いいね！を押すと提案主のレポートに「採用」、チャット参加者に「あなたのおかげで」が表示され、お礼の気持ちが伝わります。">
             <span className="cursor-help text-sm text-muted-foreground">?</span>
           </ClinicalTooltip>
         </div>
         <p className="mb-4 text-sm text-muted-foreground">
-          たくさんの提案が上がってくるため、取捨選択の参考に閲覧してからいいね！で採用してください。
+          たくさんの提案が上がってくるため、閲覧してから「いいね！」「悪くない」「う〜ん」で迅速に篩い分けできます。後から検証用に反応で絞り込み可能です。
         </p>
+        {/* 検証用：反応で絞り込み */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">検証用：</span>
+          {REACTION_FILTER_OPTIONS.map((opt) => (
+            <Button
+              key={opt.value || "all"}
+              variant={reactionFilter === opt.value ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setReactionFilter(opt.value as DirectorReaction | "")}
+            >
+              {opt.label}
+            </Button>
+          ))}
+        </div>
         <div className="space-y-2 rounded-lg border border-border bg-card shadow-sm">
-          {PROPOSALS_TO_DIRECTOR.map((p) => {
-            const chat = getChatById(p.chatId);
-            const proposal = getSentProposal(p.chatId);
-            const messages = getChatMessages(p.chatId);
-            const open = expandedId === p.chatId;
+          {displayedProposals.length === 0 ? (
+            <div className="px-6 py-8 text-center text-sm text-muted-foreground">
+              {summaryFilter ? "該当する提案はありません。" : "挙がってきた提案はまだありません。"}
+            </div>
+          ) : (
+            <>
+              {displayedProposals.map((item) => {
+                const chat = getChatById(item.chatId);
+                const messages = getChatMessages(item.chatId);
+                const open = expandedId === item.key;
 
-            return (
-              <div
-                key={p.chatId}
-                className="rounded-lg border border-border bg-card overflow-hidden"
-              >
+                return (
+                  <div
+                    key={item.key}
+                    className="rounded-lg border border-border bg-card overflow-hidden"
+                  >
                 <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
                   <div className="min-w-0">
-                    <p className="font-medium text-foreground">
-                      {proposal?.title ?? "（提案）"}
-                    </p>
+                    <p className="font-medium text-foreground">{item.title}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {p.from} ／ {p.date}
+                      {item.from} ／ {item.date}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setExpandedId(open ? null : p.chatId)}
+                      onClick={() => setExpandedId(open ? null : item.key)}
                       className="gap-1"
                     >
                       {open ? (
@@ -144,15 +278,50 @@ export default function DirectorPage() {
                         </>
                       )}
                     </Button>
-                    <Button
-                      size="sm"
-                      variant={isLiked(p.chatId) ? "secondary" : "default"}
-                      onClick={() => toggleLiked(p.chatId)}
-                      className="gap-1"
-                    >
-                      <ThumbsUp className="h-4 w-4" />
-                      {isLiked(p.chatId) ? "いいね！済み" : "いいね！"}
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant={getReaction(item.chatId) === "liked" ? "default" : "outline"}
+                        onClick={() =>
+                          setReaction(
+                            item.chatId,
+                            getReaction(item.chatId) === "liked" ? null : "liked"
+                          )
+                        }
+                        className="gap-1"
+                      >
+                        <ThumbsUp className="h-4 w-4" />
+                        {getReaction(item.chatId) === "liked" ? "いいね！済み" : "いいね！"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={getReaction(item.chatId) === "not_bad" ? "secondary" : "outline"}
+                        onClick={() =>
+                          setReaction(
+                            item.chatId,
+                            getReaction(item.chatId) === "not_bad" ? null : "not_bad"
+                          )
+                        }
+                        className="gap-1"
+                      >
+                        <Minus className="h-4 w-4" />
+                        {getReaction(item.chatId) === "not_bad" ? "悪くない 済" : "悪くない"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={getReaction(item.chatId) === "hmm" ? "secondary" : "outline"}
+                        onClick={() =>
+                          setReaction(
+                            item.chatId,
+                            getReaction(item.chatId) === "hmm" ? null : "hmm"
+                          )
+                        }
+                        className="gap-1"
+                      >
+                        <ThumbsDown className="h-4 w-4" />
+                        {getReaction(item.chatId) === "hmm" ? "う〜ん 済" : "う〜ん"}
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
@@ -185,43 +354,43 @@ export default function DirectorPage() {
                         )}
                       </div>
                     </div>
-                    {proposal && (
-                      <div>
-                        <h4 className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
-                          <FileText className="h-4 w-4" />
-                          提案内容
-                        </h4>
-                        <div className="rounded-lg border border-border bg-background p-4 space-y-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">タイトル</p>
-                            <p className="font-medium text-foreground">{proposal.title}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">本文</p>
-                            <p className="whitespace-pre-wrap text-sm text-foreground">
-                              {proposal.body}
-                            </p>
-                          </div>
-                          {proposal.improvements.length > 0 && (
-                            <div>
-                              <p className="mb-1 text-xs text-muted-foreground">改善案</p>
-                              <ul className="space-y-1">
-                                {proposal.improvements.map((imp, i) => (
-                                  <li key={i} className="text-sm">
-                                    {imp.title}（ROI: {imp.roi}、リスク: {imp.risk}）
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
+                    <div>
+                      <h4 className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
+                        <FileText className="h-4 w-4" />
+                        提案内容
+                      </h4>
+                      <div className="rounded-lg border border-border bg-background p-4 space-y-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">タイトル</p>
+                          <p className="font-medium text-foreground">{item.title}</p>
                         </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">本文</p>
+                          <p className="whitespace-pre-wrap text-sm text-foreground">
+                            {item.body}
+                          </p>
+                        </div>
+                        {item.improvements.length > 0 && (
+                          <div>
+                            <p className="mb-1 text-xs text-muted-foreground">改善案</p>
+                            <ul className="space-y-1">
+                              {item.improvements.map((imp, i) => (
+                                <li key={i} className="text-sm">
+                                  {imp.title}（ROI: {imp.roi}、リスク: {imp.risk}）
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 )}
-              </div>
-            );
-          })}
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
       </section>
     </div>

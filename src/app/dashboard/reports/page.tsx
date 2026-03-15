@@ -8,6 +8,7 @@ import {
 } from "@/lib/chat-logs-data";
 import { ClinicalTooltip } from "@/components/ui/clinical-tooltip";
 import { useDirectorLiked } from "@/contexts/director-liked";
+import { usePendingProposals } from "@/contexts/pending-proposals";
 
 function formatSentAt(iso: string): string {
   return new Date(iso).toLocaleString("ja-JP", {
@@ -21,11 +22,18 @@ function formatSentAt(iso: string): string {
 
 export default function ReportsPage() {
   const { likedChatIds } = useDirectorLiked();
+  const { getSentProposalFromContext } = usePendingProposals();
   const reports = likedChatIds
     .map((chatId) => {
-      const proposal = getSentProposal(chatId);
+      const proposal = getSentProposal(chatId) ?? getSentProposalFromContext(chatId);
       if (!proposal) return null;
-      return { chatId, ...proposal };
+      return {
+        chatId,
+        title: proposal.title,
+        body: proposal.body,
+        sentAt: proposal.sentAt,
+        improvements: "improvements" in proposal ? proposal.improvements : [],
+      };
     })
     .filter(Boolean) as { chatId: string; title: string; body: string; sentAt: string; improvements: { title: string; roi: string; risk: string }[] }[];
 
