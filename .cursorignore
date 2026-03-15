@@ -1,0 +1,7 @@
+# エディタの監視・インデックス対象から外し EMFILE を軽減
+node_modules/
+.next/
+out/
+build/
+dist/
+.cache/
