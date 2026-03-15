@@ -1,53 +1,42 @@
 "use client";
 
-import { ClinicalTooltip } from "@/components/ui/clinical-tooltip";
-
-const cards = [
-  {
-    title: "本日の件数",
-    value: "—",
-    desc: "レポート・症例",
-    tip: "臨床医の視点では、当日の症例数・報告数が一目で分かると、優先順位づけがしやすくなります。",
-  },
-  {
-    title: "対応中",
-    value: "—",
-    desc: "進行中のタスク",
-    tip: "いま手がけているタスクを一覧にし、引き継ぎや棚卸しに活用できます。",
-  },
-  {
-    title: "アラート",
-    value: "0",
-    desc: "要対応",
-    tip: "見逃しがちなフォローや期限を、アラートで補完します。",
-  },
-];
+import Link from "next/link";
+import { Sparkles, MessageSquare } from "lucide-react";
 
 export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-          ダッシュボード
+          従業員用トップ
         </h2>
         <p className="text-muted-foreground">
-          メイン画面です。医療現場の情報を一覧で確認できます。
+          このデモでは user は 1 従業員です。左のメニューから機能を選んでください。
         </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {cards.map((card) => (
-          <ClinicalTooltip key={card.title} content={card.tip}>
-            <div className="rounded-lg border border-border bg-card p-6 shadow-sm cursor-help">
-              <p className="text-sm font-medium text-muted-foreground">
-                {card.title}
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">
-                {card.value}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">{card.desc}</p>
-            </div>
-          </ClinicalTooltip>
-        ))}
+      <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+        <p className="mb-4 text-sm font-medium text-foreground">
+          主な機能
+        </p>
+        <ul className="space-y-2 text-sm text-muted-foreground">
+          <li className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+            <Link href="/dashboard/summarize" className="text-primary hover:underline">
+              AIサマライズ
+            </Link>
+            — チャットログから改善案を生成し、院長に報告
+          </li>
+          <li className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4 shrink-0 text-primary" />
+            <Link href="/dashboard/chat-logs" className="text-primary hover:underline">
+              チャットログ一覧
+            </Link>
+            — 企画管理室のチャットスレッド一覧
+          </li>
+        </ul>
+        <p className="mt-4 text-xs text-muted-foreground">
+          院長用のダッシュボード・提案一覧は、メニュー下部の「院長」からご利用ください。
+        </p>
       </div>
     </div>
   );

@@ -3,28 +3,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
   FileText,
-  Users,
+  MessageSquare,
   Settings,
   Activity,
-  Sparkles,
   CheckCircle2,
-  Grid3X3,
   Circle,
+  Building2,
+  Heart,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems: { href: string; label: string; icon: LucideIcon }[] = [
-  { href: "/dashboard", label: "ダッシュボード", icon: LayoutDashboard },
-  { href: "/dashboard/summarize", label: "AIサマライズ", icon: Sparkles },
-  { href: "/dashboard/consensus", label: "コンセンサス・ビュー", icon: CheckCircle2 },
-  { href: "/dashboard/heatmap", label: "人的資本ヒートマップ", icon: Grid3X3 },
-  { href: "/dashboard/reports", label: "レポート", icon: FileText },
-  { href: "/dashboard/patients", label: "患者一覧", icon: Users },
+  { href: "/dashboard/chat-logs", label: "チャットログ一覧", icon: MessageSquare },
+  { href: "/dashboard/consensus", label: "未承認の提案一覧", icon: CheckCircle2 },
+  { href: "/dashboard/reports", label: "院長いいねリスト", icon: FileText },
+  { href: "/dashboard/thanks", label: "あなたのおかげで", icon: Heart },
   { href: "/dashboard/activity", label: "アクティビティ", icon: Activity },
   { href: "/dashboard/settings", label: "設定", icon: Settings },
+  { href: "/dashboard/director", label: "院長", icon: Building2 },
 ];
 
 export function DashboardSidebar() {
@@ -49,7 +47,7 @@ export function DashboardSidebar() {
         {navItems.map((item) => {
           const isActive =
             pathname === item.href ||
-            (item.href !== "/dashboard" && pathname.startsWith(item.href));
+            (item.href !== "/dashboard/director" && pathname.startsWith(item.href));
           return (
             <Link
               key={item.href}

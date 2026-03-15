@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack --hostname 127.0.0.1",
+    "dev": "next dev --hostname 127.0.0.1 --port 3001",
     "dev:stable": "next dev --hostname 127.0.0.1",
+    "dev:3001": "next dev --hostname 127.0.0.1 --port 3001",
+    "dev:3002": "next dev --hostname 127.0.0.1 --port 3002",
     "build": "next build",
     "start": "next start",
+    "start:3001": "next start -p 3001",
     "lint": "next lint"
   },
   "dependencies": {

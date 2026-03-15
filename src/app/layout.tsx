@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 export const metadata: Metadata = {
   title: "Field Intelligence OS",
-  description: "フィールド医療インテリジェンス デモアプリ",
+  description: "1人の従業員が意思決定者に提案するためのデモアプリ",
 };
 
 export default function RootLayout({

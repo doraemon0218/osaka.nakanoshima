@@ -9,7 +9,7 @@ export default function HomePage() {
           Field Intelligence OS
         </h1>
         <p className="text-muted-foreground">
-          フィールド医療インテリジェンス デモアプリ
+          振り返りながら、経営意思決定支援を
         </p>
       </div>
       <Button asChild>
