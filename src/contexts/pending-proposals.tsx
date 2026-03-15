@@ -4,9 +4,11 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from "react";
+import { getDemoResetEventName } from "@/lib/demo-reset";
 
 export type ApproverStatus = "approved" | "pending";
 
@@ -43,6 +45,17 @@ export function PendingProposalsProvider({ children }: { children: ReactNode }) 
   const [proposals, setProposals] = useState<PendingProposal[]>([]);
   const [sentChatIds, setSentChatIds] = useState<string[]>([]);
   const [sentProposalsByChatId, setSentProposalsByChatId] = useState<Record<string, SentProposalSnapshot>>({});
+
+  useEffect(() => {
+    const eventName = getDemoResetEventName();
+    const handler = () => {
+      setProposals([]);
+      setSentChatIds([]);
+      setSentProposalsByChatId({});
+    };
+    window.addEventListener(eventName, handler);
+    return () => window.removeEventListener(eventName, handler);
+  }, []);
 
   const getSentProposalFromContext = useCallback((chatId: string): SentProposalSnapshot | null => {
     return sentProposalsByChatId[chatId] ?? null;

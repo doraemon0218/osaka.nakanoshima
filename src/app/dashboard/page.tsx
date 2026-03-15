@@ -29,7 +29,7 @@ export default function DashboardPage() {
           <li className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4 shrink-0 text-primary" />
             <Link href="/dashboard/chat-logs" className="text-primary hover:underline">
-              チャットログ一覧
+              自分が主のチャット一覧
             </Link>
             — 企画管理室のチャットスレッド一覧
           </li>

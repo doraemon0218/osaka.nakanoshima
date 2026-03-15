@@ -1,12 +1,37 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ClinicalTooltip } from "@/components/ui/clinical-tooltip";
-import { MessageSquare, ChevronRight, Send, Clock } from "lucide-react";
+import { MessageSquare, ChevronRight, Send, Clock, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DUMMY_CHAT_LOGS } from "@/lib/chat-logs-data";
 import { usePendingProposals } from "@/contexts/pending-proposals";
+import { getDemoResetEventName } from "@/lib/demo-reset";
+import { Button } from "@/components/ui/button";
+
+const DELETED_UNSENT_KEY = "deleted-unsent-chat-ids";
+
+function loadDeletedUnsentIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(DELETED_UNSENT_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw) as unknown;
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveDeletedUnsentIds(ids: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(DELETED_UNSENT_KEY, JSON.stringify(ids));
+  } catch {
+    // ignore
+  }
+}
 
 function formatLastAt(iso: string): string {
   const d = new Date(iso);
@@ -21,22 +46,47 @@ function formatLastAt(iso: string): string {
 
 export default function ChatLogsPage() {
   const { sentChatIds } = usePendingProposals();
+  const [deletedUnsentIds, setDeletedUnsentIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setDeletedUnsentIds(loadDeletedUnsentIds());
+  }, []);
+
+  useEffect(() => {
+    const eventName = getDemoResetEventName();
+    const handler = () => setDeletedUnsentIds([]);
+    window.addEventListener(eventName, handler);
+    return () => window.removeEventListener(eventName, handler);
+  }, []);
+
+  const handleDeleteUnsent = useCallback((chatId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDeletedUnsentIds((prev) => {
+      const next = prev.includes(chatId) ? prev : [...prev, chatId];
+      saveDeletedUnsentIds(next);
+      return next;
+    });
+  }, []);
+
   const sortedLogs = useMemo(() => {
     const isSent = (l: (typeof DUMMY_CHAT_LOGS)[0]) =>
       l.sentStatus === "sent" || sentChatIds.includes(l.id);
-    const unsent = DUMMY_CHAT_LOGS.filter((l) => !isSent(l))
+    const unsentRaw = DUMMY_CHAT_LOGS.filter((l) => !isSent(l));
+    const unsent = unsentRaw
+      .filter((l) => !deletedUnsentIds.includes(l.id))
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     const sent = DUMMY_CHAT_LOGS.filter(isSent)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     return { unsent, sent };
-  }, [sentChatIds]);
+  }, [sentChatIds, deletedUnsentIds]);
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
           <MessageSquare className="h-7 w-7 text-primary" />
-          チャットログ一覧
+          自分が主のチャット一覧
           <ClinicalTooltip content="自分が主のチャットのみ一覧表示されます。提案未送信が上、送信済みが下で、それぞれ新しい順に並びます。送信済みを開くと、過去に送信した提案内容を振り返れます。">
             <span className="text-muted-foreground cursor-help">?</span>
           </ClinicalTooltip>
@@ -62,36 +112,48 @@ export default function ChatLogsPage() {
           ) : (
             sortedLogs.unsent.map((log) => (
               <li key={log.id}>
-                <Link
-                  href={`/dashboard/chat-logs/${log.id}`}
-                  className={cn(
-                    "flex items-center gap-4 px-6 py-4 transition-colors hover:bg-muted/50",
-                    log.unread > 0 && "bg-primary/5"
-                  )}
-                >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
-                    <MessageSquare className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate font-medium text-foreground">
-                        {log.title}
-                      </p>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {formatLastAt(log.updatedAt)}
-                      </span>
+                <div className="flex items-center gap-2 px-6 py-4">
+                  <Link
+                    href={`/dashboard/chat-logs/${log.id}`}
+                    className={cn(
+                      "flex min-w-0 flex-1 items-center gap-4 transition-colors hover:bg-muted/50 rounded-md -m-2 p-2",
+                      log.unread > 0 && "bg-primary/5"
+                    )}
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
+                      <MessageSquare className="h-5 w-5" />
                     </div>
-                    <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                      {log.lastMessage}
-                    </p>
-                  </div>
-                  {log.unread > 0 && (
-                    <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-2 text-xs font-medium text-primary-foreground">
-                      {log.unread}
-                    </span>
-                  )}
-                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
-                </Link>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate font-medium text-foreground">
+                          {log.title}
+                        </p>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {formatLastAt(log.updatedAt)}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                        {log.lastMessage}
+                      </p>
+                    </div>
+                    {log.unread > 0 && (
+                      <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-2 text-xs font-medium text-primary-foreground">
+                        {log.unread}
+                      </span>
+                    )}
+                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+                  </Link>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    onClick={(e) => handleDeleteUnsent(log.id, e)}
+                    title="このチャットを一覧から削除"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </li>
             ))
           )}

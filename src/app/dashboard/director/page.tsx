@@ -13,10 +13,16 @@ import {
   Minus,
   ChevronUp,
   Filter,
+  HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useDirectorLiked, type DirectorReaction } from "@/contexts/director-liked";
+import {
+  useDirectorLiked,
+  type DirectorReaction,
+  PLANNING_MEMBERS,
+} from "@/contexts/director-liked";
 import { usePendingProposals } from "@/contexts/pending-proposals";
+import { usePlanningEvaluation, PLANNING_THEMES } from "@/contexts/planning-evaluation";
 import {
   getChatById,
   getChatMessages,
@@ -67,15 +73,242 @@ const REACTION_FILTER_OPTIONS: { value: DirectorReaction | ""; label: string }[]
   { value: "hmm", label: "う〜ん" },
 ];
 
+const PLANNING_REACTION_LABELS: Record<string, string> = {
+  liked: "いいね！",
+  not_bad: "悪くない",
+  hmm: "う〜ん",
+};
+
+type DirectorProposalCardProps = {
+  item: DirectorProposalItem;
+  expandedId: string | null;
+  setExpandedId: (id: string | null) => void;
+  getReaction: (chatId: string) => DirectorReaction | null;
+  getAssignedTo: (chatId: string) => string;
+  getMemo: (chatId: string) => string;
+  setReaction: (chatId: string, reaction: DirectorReaction | null, assignedTo?: string) => void;
+  setAssignedTo: (chatId: string, assignedTo: string) => void;
+  setMemo: (chatId: string, memo: string) => void;
+  getPlanningEvaluation: (chatId: string) => { themeId: string; reaction: string; askDirector: boolean } | null;
+};
+
+function DirectorProposalCard({
+  item,
+  expandedId,
+  setExpandedId,
+  getReaction,
+  getAssignedTo,
+  getMemo,
+  setReaction,
+  setAssignedTo,
+  setMemo,
+  getPlanningEvaluation,
+}: DirectorProposalCardProps) {
+  const chat = getChatById(item.chatId);
+  const messages = getChatMessages(item.chatId);
+  const open = expandedId === item.key;
+  const planningEv = getPlanningEvaluation(item.chatId);
+
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-medium text-foreground">{item.title}</p>
+            {planningEv ? (
+              <>
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                  {PLANNING_THEMES.find((t) => t.id === planningEv.themeId)?.label ?? planningEv.themeId}
+                </span>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                  企画管理室：{PLANNING_REACTION_LABELS[planningEv.reaction] ?? planningEv.reaction}
+                </span>
+                {planningEv.askDirector ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                    <HelpCircle className="h-3 w-3" />
+                    院長に聞く
+                  </span>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {item.from} ／ {item.date}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setExpandedId(open ? null : item.key)}
+            className="gap-1"
+          >
+            {open ? (
+              <>
+                <ChevronUp className="h-4 w-4" />
+                閉じる
+              </>
+            ) : (
+              <>
+                <MessageSquare className="h-4 w-4" />
+                閲覧（チャット・提案内容）
+              </>
+            )}
+          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                棚卸先：
+              </span>
+              <select
+                value={getAssignedTo(item.chatId) ?? ""}
+                onChange={(e) =>
+                  setAssignedTo(item.chatId, (e.target.value || "") as "" | "A" | "B" | "C" | "D" | "E")
+                }
+                className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+              >
+                <option value="">未選択</option>
+                {PLANNING_MEMBERS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant={getReaction(item.chatId) === "liked" ? "default" : "outline"}
+                onClick={() =>
+                  setReaction(item.chatId, getReaction(item.chatId) === "liked" ? null : "liked", getAssignedTo(item.chatId) || "")
+                }
+                className="gap-1"
+              >
+                <ThumbsUp className="h-4 w-4" />
+                {getReaction(item.chatId) === "liked" ? "いいね！済み" : "いいね！"}
+              </Button>
+              <Button
+                size="sm"
+                variant={getReaction(item.chatId) === "not_bad" ? "secondary" : "outline"}
+                onClick={() =>
+                  setReaction(item.chatId, getReaction(item.chatId) === "not_bad" ? null : "not_bad", getAssignedTo(item.chatId) || "")
+                }
+                className="gap-1"
+              >
+                <Minus className="h-4 w-4" />
+                {getReaction(item.chatId) === "not_bad" ? "悪くない 済" : "悪くない"}
+              </Button>
+              <Button
+                size="sm"
+                variant={getReaction(item.chatId) === "hmm" ? "secondary" : "outline"}
+                onClick={() =>
+                  setReaction(item.chatId, getReaction(item.chatId) === "hmm" ? null : "hmm", getAssignedTo(item.chatId) || "")
+                }
+                className="gap-1"
+              >
+                <ThumbsDown className="h-4 w-4" />
+                {getReaction(item.chatId) === "hmm" ? "う〜ん 済" : "う〜ん"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="border-t border-border/60 px-6 py-3 bg-muted/20">
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+          意図・詳細のメモ（任意）
+        </label>
+        <textarea
+          value={getMemo(item.chatId)}
+          onChange={(e) => setMemo(item.chatId, e.target.value)}
+          placeholder="棚卸の意図や詳細をフリー入力で追記できます"
+          className="w-full min-h-[72px] rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
+          rows={2}
+        />
+      </div>
+      {open ? (
+        <div className="border-t border-border bg-muted/20 px-6 py-5 space-y-5">
+          <div>
+            <h4 className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
+              <MessageSquare className="h-4 w-4" />
+              チャットログ
+              {chat ? (
+                <span className="font-normal text-muted-foreground">
+                  （{chat.title}）
+                </span>
+              ) : null}
+            </h4>
+            <div className="rounded-lg border border-border bg-background p-3">
+              {messages.length === 0 ? (
+                <p className="text-sm text-muted-foreground">メッセージはありません</p>
+              ) : (
+                <ul className="space-y-2">
+                  {messages.map((msg) => (
+                    <li key={msg.id} className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+                      <span className="text-xs text-muted-foreground">
+                        {msg.user} {msg.time}
+                      </span>
+                      <p className="mt-1 text-foreground">{msg.text}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+          <div>
+            <h4 className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
+              <FileText className="h-4 w-4" />
+              提案内容
+            </h4>
+            <div className="rounded-lg border border-border bg-background p-4 space-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground">タイトル</p>
+                <p className="font-medium text-foreground">{item.title}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">本文</p>
+                <p className="whitespace-pre-wrap text-sm text-foreground">
+                  {item.body}
+                </p>
+              </div>
+              {item.improvements.length > 0 ? (
+                <div>
+                  <p className="mb-1 text-xs text-muted-foreground">改善案</p>
+                  <ul className="space-y-1">
+                    {item.improvements.map((imp, i) => (
+                      <li key={i} className="text-sm">
+                        {imp.title}（ROI: {imp.roi}、リスク: {imp.risk}）
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function DirectorPage() {
-  const { isLiked, getReaction, setReaction } = useDirectorLiked();
+  const {
+    isLiked,
+    getReaction,
+    getAssignedTo,
+    getMemo,
+    isTriageComplete,
+    setReaction,
+    setAssignedTo,
+    setMemo,
+  } = useDirectorLiked();
   const { proposals: pendingProposals, getSentProposalFromContext } = usePendingProposals();
+  const { getEvaluation: getPlanningEvaluation } = usePlanningEvaluation();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>(null);
   const [reactionFilter, setReactionFilter] = useState<DirectorReaction | "">("");
 
-  // 静的リスト ＋ 未承認の提案で全員承認されたもの（院長に挙がったもの）
-  const proposalsToDirector = useMemo((): DirectorProposalItem[] => {
+  // 静的リスト ＋ 全員承認済み。院長には「企画管理室で評価済み」のものだけ表示（現場→企画管理室→院長）
+  const allProposalsToDirector = useMemo((): DirectorProposalItem[] => {
     const staticItems: DirectorProposalItem[] = STATIC_PROPOSALS_TO_DIRECTOR.map((p) => {
       const sp = getSentProposal(p.chatId);
       return {
@@ -106,10 +339,16 @@ export default function DirectorPage() {
     return [...approvedFromContext, ...staticItems];
   }, [pendingProposals, getSentProposalFromContext]);
 
-  // サマリー用：院長がまだ反応していない件数（未判定）
+  // 企画管理室でテーマ・評価済みのものだけ院長に表示（優先度・良い課題として企画管理室から上がってきたもの）
+  const proposalsToDirector = useMemo(
+    () => allProposalsToDirector.filter((p) => getPlanningEvaluation(p.chatId) != null),
+    [allProposalsToDirector, getPlanningEvaluation]
+  );
+
+  // サマリー用：棚卸先・評価の両方が未入力の件数（対応中）。両方入れたときだけ対応中から外れる
   const unreviewedCount = useMemo(
-    () => proposalsToDirector.filter((p) => getReaction(p.chatId) === null).length,
-    [proposalsToDirector, getReaction]
+    () => proposalsToDirector.filter((p) => !isTriageComplete(p.chatId)).length,
+    [proposalsToDirector, isTriageComplete]
   );
   const alertCount = unreviewedCount > 0 ? 1 : 0;
 
@@ -117,13 +356,13 @@ export default function DirectorPage() {
   const displayedProposals = useMemo(() => {
     let list = proposalsToDirector;
     if (summaryFilter) {
-      list = list.filter((p) => getReaction(p.chatId) === null);
+      list = list.filter((p) => !isTriageComplete(p.chatId));
     }
     if (reactionFilter) {
       list = list.filter((p) => getReaction(p.chatId) === reactionFilter);
     }
     return list;
-  }, [proposalsToDirector, summaryFilter, reactionFilter, getReaction]);
+  }, [proposalsToDirector, summaryFilter, reactionFilter, getReaction, isTriageComplete]);
 
   const getSummaryValue = (key: SummaryFilter): string => {
     if (key === "alert") return String(alertCount);
@@ -140,7 +379,7 @@ export default function DirectorPage() {
             院長用ダッシュボード
           </h2>
           <p className="text-sm text-muted-foreground">
-            挙がってきた提案を閲覧し、チャットログを確認してからいいね！で採用できます。提案主・チャット参加者に感謝が伝わります。
+            企画管理室でテーマ分類・評価された提案がここに上がります。優先度・良い課題を確認してから、いいね！／悪くない／う〜んで判断できます。「院長に聞く」付きは要確認です。
           </p>
         </div>
       </div>
@@ -218,7 +457,7 @@ export default function DirectorPage() {
           </ClinicalTooltip>
         </div>
         <p className="mb-4 text-sm text-muted-foreground">
-          たくさんの提案が上がってくるため、閲覧してから「いいね！」「悪くない」「う〜ん」で迅速に篩い分けできます。後から検証用に反応で絞り込み可能です。
+          企画管理室の評価（テーマ・いいね／悪くない／う〜ん）を踏まえ、院長として「いいね！」「悪くない」「う〜ん」で迅速に篩い分けできます。後から検証用に反応で絞り込み可能です。
         </p>
         {/* 検証用：反応で絞り込み */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -238,157 +477,27 @@ export default function DirectorPage() {
         <div className="space-y-2 rounded-lg border border-border bg-card shadow-sm">
           {displayedProposals.length === 0 ? (
             <div className="px-6 py-8 text-center text-sm text-muted-foreground">
-              {summaryFilter ? "該当する提案はありません。" : "挙がってきた提案はまだありません。"}
+              {summaryFilter
+                ? "該当する提案はありません。"
+                : "企画管理室で評価された提案がここに表示されます。まず経営企画室でテーマ分類・評価してください。"}
             </div>
           ) : (
             <>
-              {displayedProposals.map((item) => {
-                const chat = getChatById(item.chatId);
-                const messages = getChatMessages(item.chatId);
-                const open = expandedId === item.key;
-
-                return (
-                  <div
-                    key={item.key}
-                    className="rounded-lg border border-border bg-card overflow-hidden"
-                  >
-                <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground">{item.title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {item.from} ／ {item.date}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setExpandedId(open ? null : item.key)}
-                      className="gap-1"
-                    >
-                      {open ? (
-                        <>
-                          <ChevronUp className="h-4 w-4" />
-                          閉じる
-                        </>
-                      ) : (
-                        <>
-                          <MessageSquare className="h-4 w-4" />
-                          閲覧（チャット・提案内容）
-                        </>
-                      )}
-                    </Button>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant={getReaction(item.chatId) === "liked" ? "default" : "outline"}
-                        onClick={() =>
-                          setReaction(
-                            item.chatId,
-                            getReaction(item.chatId) === "liked" ? null : "liked"
-                          )
-                        }
-                        className="gap-1"
-                      >
-                        <ThumbsUp className="h-4 w-4" />
-                        {getReaction(item.chatId) === "liked" ? "いいね！済み" : "いいね！"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={getReaction(item.chatId) === "not_bad" ? "secondary" : "outline"}
-                        onClick={() =>
-                          setReaction(
-                            item.chatId,
-                            getReaction(item.chatId) === "not_bad" ? null : "not_bad"
-                          )
-                        }
-                        className="gap-1"
-                      >
-                        <Minus className="h-4 w-4" />
-                        {getReaction(item.chatId) === "not_bad" ? "悪くない 済" : "悪くない"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={getReaction(item.chatId) === "hmm" ? "secondary" : "outline"}
-                        onClick={() =>
-                          setReaction(
-                            item.chatId,
-                            getReaction(item.chatId) === "hmm" ? null : "hmm"
-                          )
-                        }
-                        className="gap-1"
-                      >
-                        <ThumbsDown className="h-4 w-4" />
-                        {getReaction(item.chatId) === "hmm" ? "う〜ん 済" : "う〜ん"}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                {open && (
-                  <div className="border-t border-border bg-muted/20 px-6 py-5 space-y-5">
-                    <div>
-                      <h4 className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
-                        <MessageSquare className="h-4 w-4" />
-                        チャットログ
-                        {chat && (
-                          <span className="font-normal text-muted-foreground">
-                            （{chat.title}）
-                          </span>
-                        )}
-                      </h4>
-                      <div className="rounded-lg border border-border bg-background p-3">
-                        {messages.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">メッセージはありません</p>
-                        ) : (
-                          <ul className="space-y-2">
-                            {messages.map((msg) => (
-                              <li key={msg.id} className="rounded-md bg-muted/50 px-3 py-2 text-sm">
-                                <span className="text-xs text-muted-foreground">
-                                  {msg.user} {msg.time}
-                                </span>
-                                <p className="mt-1 text-foreground">{msg.text}</p>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
-                        <FileText className="h-4 w-4" />
-                        提案内容
-                      </h4>
-                      <div className="rounded-lg border border-border bg-background p-4 space-y-3">
-                        <div>
-                          <p className="text-xs text-muted-foreground">タイトル</p>
-                          <p className="font-medium text-foreground">{item.title}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">本文</p>
-                          <p className="whitespace-pre-wrap text-sm text-foreground">
-                            {item.body}
-                          </p>
-                        </div>
-                        {item.improvements.length > 0 && (
-                          <div>
-                            <p className="mb-1 text-xs text-muted-foreground">改善案</p>
-                            <ul className="space-y-1">
-                              {item.improvements.map((imp, i) => (
-                                <li key={i} className="text-sm">
-                                  {imp.title}（ROI: {imp.roi}、リスク: {imp.risk}）
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                  </div>
-                );
-              })}
+              {displayedProposals.map((item) => (
+                <DirectorProposalCard
+                  key={item.key}
+                  item={item}
+                  expandedId={expandedId}
+                  setExpandedId={setExpandedId}
+                  getReaction={getReaction}
+                  getAssignedTo={getAssignedTo}
+                  getMemo={getMemo}
+                  setReaction={setReaction}
+                  setAssignedTo={setAssignedTo}
+                  setMemo={setMemo}
+                  getPlanningEvaluation={getPlanningEvaluation}
+                />
+              ))}
             </>
           )}
         </div>

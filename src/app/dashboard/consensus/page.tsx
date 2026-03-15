@@ -93,7 +93,7 @@ export default function ConsensusPage() {
       <div>
         <h2 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
           <CheckCircle2 className="h-7 w-7 text-primary" />
-          未承認の提案一覧
+          承認待ちの提案一覧
           <ClinicalTooltip content="各チャットを総括し、院長に提案する内容について、チャット内の承認を得たものが院長に上がります。チャット主が要約・提案を送信すると、チャット内の人に承認確認が通知され、承認されると院長に上がります。">
             <span className="text-muted-foreground cursor-help">?</span>
           </ClinicalTooltip>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -10,23 +11,35 @@ import {
   CheckCircle2,
   Circle,
   Building2,
+  Briefcase,
   Heart,
+  RotateCcw,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { resetDemoStorage } from "@/lib/demo-reset";
 
 const navItems: { href: string; label: string; icon: LucideIcon }[] = [
-  { href: "/dashboard/chat-logs", label: "チャットログ一覧", icon: MessageSquare },
-  { href: "/dashboard/consensus", label: "未承認の提案一覧", icon: CheckCircle2 },
+  { href: "/dashboard/chat-logs", label: "自分が主のチャット一覧", icon: MessageSquare },
+  { href: "/dashboard/consensus", label: "承認待ちの提案一覧", icon: CheckCircle2 },
   { href: "/dashboard/reports", label: "院長いいねリスト", icon: FileText },
   { href: "/dashboard/thanks", label: "あなたのおかげで", icon: Heart },
   { href: "/dashboard/activity", label: "アクティビティ", icon: Activity },
   { href: "/dashboard/settings", label: "設定", icon: Settings },
+  { href: "/dashboard/planning", label: "経営企画室", icon: Briefcase },
   { href: "/dashboard/director", label: "院長", icon: Building2 },
 ];
 
 export function DashboardSidebar() {
   const pathname = usePathname();
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
+
+  const handleResetDemo = () => {
+    resetDemoStorage();
+    setResetMessage("デモを初期値に戻しました");
+    setTimeout(() => setResetMessage(null), 2500);
+  };
 
   return (
     <aside
@@ -47,7 +60,9 @@ export function DashboardSidebar() {
         {navItems.map((item) => {
           const isActive =
             pathname === item.href ||
-            (item.href !== "/dashboard/director" && pathname.startsWith(item.href));
+            (item.href !== "/dashboard/director" &&
+              item.href !== "/dashboard/planning" &&
+              pathname.startsWith(item.href));
           return (
             <Link
               key={item.href}
@@ -65,6 +80,24 @@ export function DashboardSidebar() {
           );
         })}
       </nav>
+      {/* デモ用：初期値に戻す */}
+      <div className="border-t border-[hsl(var(--sidebar-border))] px-4 py-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="w-full justify-start gap-2 border-[hsl(var(--sidebar-border))] bg-transparent text-[hsl(var(--sidebar-foreground))]/90 hover:bg-[hsl(var(--sidebar-accent))]/80"
+          onClick={handleResetDemo}
+        >
+          <RotateCcw className="h-4 w-4 shrink-0" />
+          初期値に戻す
+        </Button>
+        {resetMessage && (
+          <p className="mt-2 text-center text-xs text-[hsl(var(--sidebar-foreground))]/70">
+            {resetMessage}
+          </p>
+        )}
+      </div>
       {/* 実行中ステータスインジケーター */}
       <div className="border-t border-[hsl(var(--sidebar-border))] px-4 py-3">
         <div className="flex items-center gap-2 rounded-lg bg-[hsl(var(--sidebar-accent))]/80 px-3 py-2">
