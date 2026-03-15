@@ -92,13 +92,14 @@ function loadSettings(): Partial<StoredSettings> {
       wardDirection: validWardDir,
       wardNumber: typeof data.wardNumber === "string" ? data.wardNumber : undefined,
       examinationRoom: validExamRoom,
-      jobType: data.jobType ?? "",
-      joinYear: data.joinYear ?? "",
-      notifyFrequency:
-        data.notifyFrequency && NOTIFY_OPTIONS.some((o) => o.value === data.notifyFrequency)
-          ? data.notifyFrequency
-          : "on_request",
-      workStartTime: data.workStartTime ?? "09:00",
+      jobType: typeof data.jobType === "string" ? data.jobType : "",
+      joinYear: typeof data.joinYear === "string" ? data.joinYear : "",
+      notifyFrequency: ((): (typeof NOTIFY_OPTIONS)[number]["value"] => {
+        const v = data.notifyFrequency;
+        if (v && NOTIFY_OPTIONS.some((o) => o.value === v)) return v as (typeof NOTIFY_OPTIONS)[number]["value"];
+        return "on_request";
+      })(),
+      workStartTime: typeof data.workStartTime === "string" ? data.workStartTime : "09:00",
       personality:
         validStep !== undefined || validScores !== undefined || validCurrentQ !== undefined
           ? {
