@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import {
   useDirectorLiked,
   type DirectorReaction,
+  type AssignedToValue,
   PLANNING_MEMBERS,
 } from "@/contexts/director-liked";
 import { usePendingProposals } from "@/contexts/pending-proposals";
@@ -84,10 +85,10 @@ type DirectorProposalCardProps = {
   expandedId: string | null;
   setExpandedId: (id: string | null) => void;
   getReaction: (chatId: string) => DirectorReaction | null;
-  getAssignedTo: (chatId: string) => string;
+  getAssignedTo: (chatId: string) => AssignedToValue;
   getMemo: (chatId: string) => string;
-  setReaction: (chatId: string, reaction: DirectorReaction | null, assignedTo?: string) => void;
-  setAssignedTo: (chatId: string, assignedTo: string) => void;
+  setReaction: (chatId: string, reaction: DirectorReaction | null, assignedTo?: AssignedToValue) => void;
+  setAssignedTo: (chatId: string, assignedTo: AssignedToValue) => void;
   setMemo: (chatId: string, memo: string) => void;
   getPlanningEvaluation: (chatId: string) => { themeId: string; reaction: string; askDirector: boolean } | null;
 };
